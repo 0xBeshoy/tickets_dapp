@@ -19,5 +19,8 @@
   "bugs": {
     "url": "https://github.com/beshology/tickets_dapp/issues"
   },
-  "homepage": "https://github.com/beshology/tickets_dapp#readme"
+  "homepage": "https://github.com/beshology/tickets_dapp#readme",
+  "devDependencies": {
+    "@openzeppelin/contracts": "^4.4.2"
+  }
 }
