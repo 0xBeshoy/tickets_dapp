@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 contract Tickets is Ownable {
     address payable admin;
     uint256 internal NONCE;
+    address payable public WALLET;
 
     //The "Tkt", and "Evt" keywords are used as synonyms for for "Ticket" and "Event" respectively
     struct EventDetails {
@@ -40,7 +41,8 @@ contract Tickets is Ownable {
 
     mapping(uint256 => EventDetails) public eventsDB; // All events
     mapping(uint256 => uint256[]) public eventTickets; // All tickets in a specific event (<eventID> => ticketsArray[])
-    mapping(uint256 => address) public ownerOfTicket; // An owner of a specific ticket (<ticketID> => address)
+    mapping(uint256 => mapping(uint256 => address)) public ownerOfTicket; // An owner of a specific ticket in specefic event (<eventID> => (<ticketID> => address))
+    mapping(uint256 => mapping(uint256 => TicketDetails)) public ticketDetails;
     mapping(uint256 => mapping(address => uint256))
         private balanceOfEthPerOwner; // All eth paid by a specific owner in a specific event. Should default to ZERO per event after event is disabled or ended TODO: this is a bug which may allow balance to be either wiped out or be easily stolen
     mapping(uint256 => mapping(address => uint256)) balanceOfTickets; // Tickets amount per address per event <eventID => (buyerAddress => balance)> // could we use ticketsOfAddress[eventID][address][balance].length?
@@ -75,7 +77,7 @@ contract Tickets is Ownable {
 
     // Some utility functions
 
-    constructor() {
+    constructor() payable {
         NONCE = uint256(
             keccak256(
                 abi.encodePacked(
@@ -86,7 +88,12 @@ contract Tickets is Ownable {
                 )
             )
         );
+        WALLET = payable(this);
     }
+
+    fallback() external payable {}
+
+    receive() external payable {}
 
     /// @notice Returns a pseudo-random number
     /// @dev Will be used to generate EventID, TicketsID, etc.,
@@ -187,8 +194,7 @@ contract Tickets is Ownable {
         isSaleReady(eventID_)
     {
         require(
-            eventsDB[eventID_].Evt_Start_Date < block.timestamp &&
-                eventsDB[eventID_].Evt_End_Date > block.timestamp,
+            eventsDB[eventID_].Evt_End_Date > block.timestamp,
             "Event should be started first and/or shouldn't be ended too"
         );
         require(
@@ -198,26 +204,61 @@ contract Tickets is Ownable {
             "You must supply an amount of tickets that is less than the max allowed tickets to be ever sold"
         );
         uint256 totalPrice = eventsDB[eventID_].Evt_Tkt_Price * amount_;
-        require(msg.value >= totalPrice);
 
-        for (uint256 i; i <= amount_; i++) {
-            uint256 tk_id = eventTickets[eventID_].length + 1;
-            eventsDB[eventID_].Evt_Tickets.push();
-            eventsDB[eventID_].Evt_Tickets[i].Tkt_ID = tk_id;
-            eventsDB[eventID_].Evt_Tickets[i].Evt_ID = eventID_;
-            eventsDB[eventID_].Evt_Tickets[i].Tkt_Owner = msg.sender;
-            eventsDB[eventID_].Evt_Tickets[i].Tkt_Price = msg.value / amount_;
-            eventsDB[eventID_].Evt_Tickets[i].Tkt_Purchase_Date = block
-                .timestamp;
-            eventsDB[eventID_].Evt_Tickets[i].Evt_Start_Date = eventsDB[
-                eventID_
-            ].Evt_Start_Date;
-            eventsDB[eventID_].Evt_Tickets[i].Evt_End_Date = eventsDB[eventID_]
-                .Evt_End_Date;
+        require(
+            msg.sender.balance >= totalPrice,
+            "Please transfer some ETHer to your wallet first"
+        );
+        require(msg.value >= totalPrice, "Insufficient amount of ETHer sent");
 
-            eventTickets[eventID_][i] = tk_id;
-            ownerOfTicket[tk_id] = msg.sender;
+        for (uint256 i = 0; i < amount_; i++) {
+            uint256 tk_id = eventsDB[eventID_].Evt_Tickets.length + 1;
+
+            eventsDB[eventID_].Evt_Tickets.push(
+                TicketDetails(
+                    tk_id,
+                    eventID_,
+                    msg.sender,
+                    (msg.value / amount_),
+                    block.timestamp,
+                    eventsDB[eventID_].Evt_Start_Date,
+                    eventsDB[eventID_].Evt_End_Date
+                )
+            );
+
+            eventTickets[eventID_].push(tk_id);
+            ownerOfTicket[eventID_][tk_id] = msg.sender;
+            ticketDetails[eventID_][tk_id] = TicketDetails(
+                tk_id,
+                eventID_,
+                msg.sender,
+                (msg.value / amount_),
+                block.timestamp,
+                eventsDB[eventID_].Evt_Start_Date,
+                eventsDB[eventID_].Evt_End_Date
+            );
         }
+        payable(WALLET).transfer(msg.value);
+    }
+
+    function getWalletBalance() public view returns (uint256) {
+        return WALLET.balance;
+    }
+
+    function getEventTicketCount(uint256 eventID_)
+        public
+        view
+        returns (uint256)
+    {
+        return eventTickets[eventID_].length;
+    }
+
+    function getTicketInfo(uint256 eventID_, uint256 ticketID_)
+        public
+        view
+        returns (TicketDetails memory)
+    {
+        return ticketDetails[eventID_][ticketID_];
     }
 
     // function requestRefund() isAttendee {}
