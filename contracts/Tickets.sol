@@ -42,7 +42,7 @@ contract Tickets is Ownable {
     mapping(uint256 => EventDetails) public eventsDB; // All events
     mapping(uint256 => uint256[]) public eventTickets; // All tickets in a specific event (<eventID> => ticketsArray[])
     mapping(uint256 => mapping(uint256 => address)) public ownerOfTicket; // An owner of a specific ticket in specific event (<eventID> => (<ticketID> => address))
-    mapping(uint256 => mapping(uint256 => TicketDetails)) public ticketDetails; // Full details of any given ticketID in an event
+    mapping(uint256 => mapping(uint256 => TicketDetails)) public ticketDetails; // Full details of any given ticketID in an event.
     mapping(uint256 => mapping(address => uint256))
         private balanceOfEthPerOwner; // All eth paid by a specific owner in a specific event. Should default to ZERO per event after event is disabled or ended TODO: this is a bug which may allow balance to be either wiped out or be easily stolen
     mapping(uint256 => mapping(address => uint256)) balanceOfTickets; // Tickets amount per address per event <eventID => (buyerAddress => balance)> // could we use ticketsOfAddress[eventID][address][balance].length?
